@@ -1,0 +1,72 @@
+---
+title: "Assignment 1"
+author: "Adriana Lasso-Harrier"
+date: "9/6/2020"
+output: html_document
+---
+
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(tidycensus)
+```
+
+## Unit of Analysis
+
+I focused on person-level data within the 2018 American Community Survey using the following code.
+```{r}
+person_vars_2018 <- pums_variables %>%
+  distinct(year, survey, var_code, 
+           var_label, data_type, level) %>%
+  filter(level == "person", year == 2018, survey == "acs1")
+```
+## Definition of Variables
+
+I decided to focus my analysis within Massachusetts.
+
+I focused on six variables total (3 categorical and 3 numerical).
+
+1. Access to internet(categorical).
+
+2. Household language (categorical).
+
+3. Means of transportation to work (categorical).
+
+4. Income (numerical).
+
+5. Age (numerical).
+
+6. Travel time to work (numerical).
+
+```{r person data, message=FALSE, include=TRUE, results='hide'}
+int_access <- get_pums(variables = c("ACCESS", 
+                                      "HHL", 
+                                      "PINCP", 
+                                      "AGEP", 
+                                      "JWTR",
+                                      "JWMNP"),
+                        state = "MA", 
+                        year = 2018, 
+                        survey = "acs1",
+                        recode = TRUE) %>%
+  filter(AGEP > 18, JWMNP > 0) %>%
+  select(ACCESS_label, HHL_label, JWTR_label, PINCP, AGEP, JWMNP)
+int_access<- int_access[int_access$ACCESS_label!= "N/A (GQ/vacant)",]
+int_access<- int_access[int_access$HHL_label!= "N/A (GQ/vacant)",]
+```
+## Definition of Sample Population
+As you can see from above, I filtered by all respondents over the age of 18. I also made sure that travel time to work was greater than zero. I also included two lines of code at the bottom that ommitted any N/A respondents from the dataset, as there were about a thousand people who didn't answer either the internet access and/or the household language questions, and I wanted a complete dataset. 
+
+## Number of Observations
+My data set includes 31,732 observations of 6 variables. 
+
+```{r}
+head(int_access, n=10)
+```
+
+## Saved Dataset
+My saved dataset is below.
+```{r}
+write_csv(int_access, "internet.csv")
+```
+
+
