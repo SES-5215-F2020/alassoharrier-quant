@@ -1,0 +1,70 @@
+---
+title: "Assignment 1"
+author: "Adriana Lasso-Harrier"
+date: "9/6/2020"
+output: html_document
+---
+
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(tidycensus)
+```
+
+## Unit of Analysis
+
+I focused on household-level data within the 2018 American Community Survey. My unit of analysis is therefore the 2018 ACS. I retrieved this information using the following code:
+```{r}
+hh_vars_2018 <- pums_variables %>%
+  distinct(year, survey, var_code, 
+           var_label, data_type, level) %>%
+  filter(level == "housing", year == 2018, survey == "acs1")
+```
+## Definition of Variables
+
+I decided to focus my analysis within Massachusetts.
+
+I focused on the following 5 variables. I am interested in learning about a household's access to internet, as it relates to the language(s) spoken in the household, as well as the household size, income, and rent as a percentage of household income.
+
+1. Access to internet(categorical).
+
+2. Household language (categorical).
+
+3. Family income (continuous)
+
+4. Gross rent as a percentage of household income (continuous)
+
+5. Number of people in family (continuous)
+
+```{r person data, message=FALSE, include=TRUE, results='hide'}
+int_access <- get_pums(variables = c("ACCESS", 
+                                      "HHL", 
+                                      "FINCP", 
+                                      "NPF", 
+                                      "GRPIP"),  
+                       
+                        state = "MA", 
+                        year = 2018, 
+                        survey = "acs1",
+                        recode = TRUE) %>%
+  filter(GRPIP > 0) %>%
+  select(ACCESS_label, HHL_label, FINCP, NPF, GRPIP)
+int_access<- int_access[int_access$ACCESS_label!= "N/A (GQ/vacant)",]
+int_access<- int_access[int_access$HHL_label!= "N/A (GQ/vacant)",]
+```
+## Definition of Sample Population
+As you can see from above, I filtered the dataset to include all gross rent percentages over 0. I also included two lines of code at the bottom that omitted any N/A respondents from the dataset, as there were about a thousand people who didn't answer either the internet access and/or the household language questions, and I wanted a complete dataset. 
+
+## Number of Observations
+My data set includes 17,573 observations of 5 variables. 
+
+```{r}
+head(int_access, n=10)
+```
+
+## Saved Dataset
+My saved dataset is below.
+```{r}
+write_csv(int_access, "internet.csv")
+```
+
+
