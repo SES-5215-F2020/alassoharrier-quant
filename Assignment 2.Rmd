@@ -1,0 +1,222 @@
+---
+title: "Assignment-2"
+author: "Adriana LH"
+date: "9/14/2020"
+output: 
+  html_document:
+    theme: cosmo
+    highlight: zenburn
+---
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+```
+
+My variables were: 
+
+a) Population totals per census tract with access to internet [continuous]
+
+b) Median age in each census tract [continuous]
+
+c) Total population of each census tract [continuous]
+
+d) Whether a census tract was what I called "largely foreign-born," which I defined as anything above 25%. I didn't do over 50%, which would have been the majority, because there were very few census tracts that were majority foreign born and it would've made for a very boring variable. [categorical]
+
+e) The majority race of each census tract, which I defined as over 50%. [categorical]
+
+```{r}
+vars <- c(hispanic_latino = "B03002_012", 
+          white_alone = "B03002_003",
+          black_alone = "B03002_004",
+          asian_alone = "B03002_006",
+          total_pop = "B01003_001", 
+          internet_access = "B28002_001", 
+          med_age = "B01002_001",
+          foreign_born = "B05002_013")
+
+MA_tracts <- get_acs(geography = "tract",
+                     variables = vars,
+                     state = "MA",
+                     county = "Suffolk",
+                     output = "wide")
+
+MA_tracts <- MA_tracts %>%
+
+  mutate(pct_latino = hispanic_latinoE/total_popE,
+         pct_white = white_aloneE/total_popE,
+         pct_black = black_aloneE/total_popE,
+         pct_asian = asian_aloneE/total_popE,
+         large_foreign = foreign_bornE/total_popE >0.25) %>%
+  
+  mutate(maj_race = case_when(pct_latino > 0.5 ~ "latino",
+                              pct_white > 0.5 ~ "white",
+                              pct_black > 0.5 ~ "black",
+                              pct_asian > 0.5 ~ "asian",
+                              TRUE ~ "no_majority")) %>%
+  
+  mutate(internet_acc = internet_accessE/total_popE) %>%
+  
+  select(large_foreign, internet_acc, med_ageE, maj_race, total_popE)
+```
+```{r}
+write_csv(MA_tracts, "internet.csv")
+```
+
+Attaching my csv file.
+
+```{r}
+tract_data <- read_csv("internet.csv")
+attach(tract_data)
+```
+# Continuous Variables
+
+```{r}
+internet_summary <-  summary(internet_acc)
+internet_sd <- sd(internet_acc, na.rm = TRUE)
+internet_conf <- t.test(internet_acc)
+age_summary <- summary(med_ageE)
+age_sd <- sd(med_ageE, na.rm = TRUE)
+age_conf <- t.test(med_ageE)
+pop_summary <- summary(total_popE)
+pop_sd <- sd(total_popE, na.rm = TRUE)
+pop_conf <- t.test(total_popE)
+```
+```{r}
+summary_table <- tibble(Statistic = c("Sample mean", 
+                "Median",
+                "Standard deviation",
+                "Interquartile range",
+                "Population mean (95% confidence)"),
+'Median Age (years)' = c(prettyNum(age_summary["Mean"], digits=3),
+                           age_summary["Median"],
+                           prettyNum(age_sd, digits = 3),
+                           paste(age_summary["1st Qu."],"to", 
+                                 age_summary["3rd Qu."]),
+                           paste(prettyNum(age_conf$conf.int[1],
+                                           digits=3), "to",
+                                 prettyNum(age_conf$conf.int[2],
+                                               digits=3))),
+    `Percent with  Internet Access` = c(paste(prettyNum(internet_summary["Mean"]*100, 
+                                           digits=3),"%"),
+                           paste(prettyNum(internet_summary["Median"]*100,
+                                           digits=3),"%"),
+                           paste(prettyNum(internet_sd*100, digits=3),"%"),
+                           paste(prettyNum(internet_summary["1st Qu."]*100, 
+                                           digits=3),
+                                 "% to", 
+                                 prettyNum(internet_summary["3rd Qu."]*100, 
+                                           digits=3), "%"),
+                           paste(prettyNum(internet_conf$conf.int[1]*100,
+                                           digits=3), "% to",
+                                 prettyNum(internet_conf$conf.int[2]*100,
+                                           digits=3), "%")),
+   'Total Population by Tract' = c(prettyNum(pop_summary["Mean"], digits=3),
+                           pop_summary["Median"],
+                           prettyNum(pop_sd, digits = 3),
+                           paste(pop_summary["1st Qu."],"to", 
+                                 pop_summary["3rd Qu."]),
+                           paste(prettyNum(pop_conf$conf.int[1],
+                                           digits=3), "to",
+                                 prettyNum(pop_conf$conf.int[2],
+                                               digits=3))))
+knitr::kable(summary_table, 
+             caption = "Suffolk County Census Tracts, Continuous Variables")
+```
+# Histograms
+Creating histograms for each variable.
+
+## Median Age (years)
+```{r}
+ggplot(tract_data, aes(x = med_ageE)) +
+geom_histogram(color = "pink", binwidth = 1) +
+  theme_linedraw() +
+  scale_x_continuous(name = "Median Age in Census Tract") +
+  scale_y_continuous(name = "Number of tracts")
+```
+
+The distribution of the median age histogram looks somewhat normal. There is an interesting dip in the middle of the 30's range, before it shoots back up the median age of 34.3. Although the mean and the median ages aren't the same, they are fairly close. The data skews towards the right, with very few census tracts that have a median age over the mid-40's. 
+
+## Internet Access by Tract
+
+```{r}
+ggplot(tract_data, aes(x = internet_acc)) + 
+  geom_histogram(color = "green", binwidth = .02) +
+  theme_bw() +
+  scale_x_continuous(name = "Percent of tract population that has Internet",
+                     breaks = breaks <- seq(0, 1, by = 0.05),
+                     labels = paste(breaks*100, "%", sep = "")) + 
+  scale_y_continuous(name = "Number of Census Tracts") 
+```
+
+Again, this histogram is somewhat normal, but with dramatic and interesting dips in the middle of the histogram.
+The mean and median of this sample are almost the exact same (39.6% vs 39.2%).
+
+## Total Population by Tract
+
+```{r}
+ggplot(tract_data, aes(x = total_popE)) +
+geom_histogram(color = "blue", binwidth = 150) +
+  theme_linedraw() +
+  scale_x_continuous(name = "Total Population by Tract",
+                      breaks = breaks <- seq(1000, 9000, by = 1000))+
+  scale_y_continuous(name = "Number of tracts")
+```
+
+It feels inaccurate to really call this sample's distribution "normal." There are quite a few census tracts that are below 1000 people. 
+
+# Distribution of Categorical Variables
+
+
+I'll now display information about my two categorical variables, which are the percentage of the majority race of each census tract, and nativity by census tract.
+
+## Race/Ethnicity 
+
+For whatever reason, my race/ethnicity data didn't display as [1], [2], [3], etc. and only displayed all the varibles under [1], as seen below. I tried to problem solve this for a while so I could display this as a table, as I did with my other variables above, but eventually decided to show it in a more simple format.
+```{r}
+unique(maj_race)
+```
+
+```{r}
+table(MA_tracts$maj_race)
+```
+```{r}
+table(MA_tracts$maj_race) / sum(table(MA_tracts$maj_race))
+```
+
+```{r}
+t.test(MA_tracts$maj_race == "asian")
+t.test(MA_tracts$maj_race == "black")
+t.test(MA_tracts$maj_race == "latino")
+t.test(MA_tracts$maj_race == "no_majority")
+t.test(MA_tracts$maj_race == "white")
+
+```
+
+## Nativity 
+```{r}
+lar_for <- t.test(large_foreign)
+lar_not_for <- t.test(!large_foreign)
+
+tract_for <- tibble(`Majority nativity` = c("Native born","Foreign born"), 
+                     `Sample proportion` =
+                       c(paste(prettyNum(lar_for$estimate*100,
+                                         digits = 3), "%"),
+                         paste(prettyNum(lar_for$estimate*100,
+                                         digits = 3), "%")), 
+                      `95-percent confidence interval` =  
+                        c(paste(prettyNum(lar_not_for$conf.int[1]*100,
+                                          digits = 3), "% to ",
+                                prettyNum(lar_not_for$conf.int[2]*100,
+                                          digits = 3), "%"),
+                         paste(prettyNum(lar_for$conf.int[1]*100,
+                                          digits = 3), "% to ",
+                                prettyNum(lar_for$conf.int[2]*100,
+                                          digits = 3), "%")))
+knitr::kable(tract_for, caption = "Percentage of people Native or Foreign Born in Suffolk County")
+```
+
+
+
+
+
