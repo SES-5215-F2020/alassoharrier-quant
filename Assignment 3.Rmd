@@ -1,0 +1,178 @@
+---
+title: "Assignment 3"
+author: "Adriana LH"
+date: "9/21/2020"
+output: 
+ html_document:
+    theme: cosmo
+    highlight: zenburn
+---
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+```
+
+```{r include = FALSE}
+vars <- c(hispanic_latino = "B03002_012", 
+          white_alone = "B03002_003",
+          black_alone = "B03002_004",
+          asian_alone = "B03002_006",
+          total_pop = "B01003_001", 
+          internet_access = "B28002_001", 
+          med_age = "B01002_001",
+          foreign_born = "B05002_013")
+
+MA_tracts <- get_acs(geography = "tract",
+                     variables = vars,
+                     state = "MA",
+                     county = "Suffolk",
+                     output = "wide")
+
+MA_tracts <- MA_tracts %>%
+
+  mutate(pct_latino = hispanic_latinoE/total_popE,
+         pct_white = white_aloneE/total_popE,
+         pct_black = black_aloneE/total_popE,
+         pct_asian = asian_aloneE/total_popE,
+         large_foreign = foreign_bornE/total_popE >0.25) %>%
+  
+  mutate(maj_race = case_when(pct_latino > 0.5 ~ "latino",
+                              pct_white > 0.5 ~ "white",
+                              pct_black > 0.5 ~ "black",
+                              pct_asian > 0.5 ~ "asian",
+                              TRUE ~ "no_majority")) %>%
+  
+  mutate(internet_acc = internet_accessE/total_popE) %>%
+  
+  select(large_foreign, internet_acc, med_ageE, maj_race, total_popE)
+```
+
+I am looking into internet access within the multiple census tracts of Suffolk County, MA. I am examining the relationship between internet access (percentage of people with internet in each tract), racial/ethnic makeup of each census tract, the total population of each census tract, nativity of residents of the tract, and the median age. 
+
+## Relationship #1: two continuous variables in three tests
+
+```{r}
+correlation1 <- cor.test(MA_tracts$med_ageE, MA_tracts$total_popE)
+
+correlation1
+```
+
+```{r}
+correlation2 <- cor.test(MA_tracts$med_ageE, MA_tracts$internet_acc)
+
+correlation2
+```
+
+```{r}
+correlation3<- cor.test(MA_tracts$total_popE, MA_tracts$internet_acc)
+
+correlation3
+```
+
+Looking at the summaries above, we can see that for all three correlation tests, there is a weak but still statistically significant correlation with a 95% confidence Level. The correlation between median age and internet access is positive, while the correlation for the other two is negative.
+
+I'm interested in visualizing summary number 2, as it had the largest correlation value of the three.
+
+```{r}
+ggplot(MA_tracts, aes(x = med_ageE, y = internet_acc)) +
+  geom_point(size = 0.5, alpha = 0.25, position = "jitter") +
+  geom_smooth() +
+  theme_minimal() +
+  scale_x_continuous(name = "Median Age of Residents") +
+  scale_y_continuous(name = "Percent with Internet", 
+                     breaks = seq(0, .5, by = .1),
+                     labels = paste("%", 
+                                    prettyNum(seq(0, .5, by = .1),
+                                              big.mark = ","))) 
+  
+```
+
+This is interesting and actually makes a lot of sense when viewed as a graph. It seems that there's a definite upward trend in gaining internet access between ages 20-30, but then it generally stays around the same. Logically, that does make sense; I can imagine that people moving out of their parents' houses and gaining employment may affect this huge bump in the early to mid 20's. 
+
+## Relationship #2, two categorical variables
+
+```{r}
+chi_sq <- chisq.test(MA_tracts$maj_race, MA_tracts$large_foreign == "TRUE")
+chi_sq
+```
+
+```{r}
+chi_sq$observed
+```
+
+```{r}
+chi_sq$expected
+```
+
+## Relationship #3, categorical variable (3 or more levels) + continuous variables
+
+```{r}
+anova <- aov (med_ageE ~ maj_race, data = MA_tracts)
+summary(anova)
+```
+
+```{r}
+anova <- aov (internet_acc ~ maj_race, data = MA_tracts)
+summary(anova)
+```
+
+```{r}
+anova <- aov (total_popE ~ maj_race, data = MA_tracts)
+summary(anova)
+```
+
+Difference Check:
+
+```{r}
+differences <- TukeyHSD(anova)
+
+as_tibble(cbind(pair = row.names(differences$maj_race),
+                differences$maj_race))
+```
+```{r}
+ggplot(MA_tracts, aes(x = maj_race, y = internet_acc)) +
+  geom_violin() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(name = "Majority Race") +
+  scale_y_continuous(name = "Percent with Internet", 
+                      breaks = seq(0, .5, by = .1),
+                     labels = paste("%", 
+                                    prettyNum(seq(0, .5, by = .1),
+                                              big.mark = ","))) 
+```
+
+## Relationship #4, binary variable and continuous variables
+
+```{r}
+difference1 = t.test(med_ageE ~ large_foreign == "TRUE", 
+                    data = MA_tracts)
+difference1
+```
+
+```{r}
+difference2 = t.test(total_popE ~ large_foreign == "TRUE", 
+                    data = MA_tracts)
+difference2
+```
+
+```{r}
+difference3 = t.test(internet_acc ~ large_foreign == "TRUE", 
+                    data = MA_tracts)
+difference3
+```
+
+```{r}
+ggplot(MA_tracts, aes(x = large_foreign, y = internet_acc)) +
+  geom_violin() +
+  theme_bw() +
+  scale_x_discrete(name = "Born in the US, yes or no",
+                   labels = c("No", "Yes")) +
+   scale_y_continuous(name = "Percent with Internet", 
+                    breaks = seq(0, .5, by = .1),
+                     labels = paste("%", 
+                                    prettyNum(seq(0, .5, by = .1),
+                                              big.mark = ","))) 
+```
+
