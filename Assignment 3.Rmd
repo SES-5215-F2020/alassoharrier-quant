@@ -5,6 +5,9 @@ date: "9/21/2020"
 output: 
  html_document:
     theme: cosmo
+    toc: true
+    toc_depth: 3
+    toc_float: true
     highlight: zenburn
 ---
 ```{r load libraries, include = FALSE}
@@ -70,7 +73,9 @@ correlation3<- cor.test(MA_tracts$total_popE, MA_tracts$internet_acc)
 correlation3
 ```
 
-Looking at the summaries above, we can see that for all three correlation tests, there is a weak but still statistically significant correlation with a 95% confidence Level. The correlation between median age and internet access is positive, while the correlation for the other two is negative.
+Looking at the summaries above, we can see that the first test has a p-value that is greater than .05. Therefore, it's not statistically significant.
+
+For tests 2 and 3, there is a weak but still statistically significant correlation with a 95% confidence Level. The correlation between median age and internet access is positive, while the correlation for population number per tract and internet access is negative.
 
 I'm interested in visualizing summary number 2, as it had the largest correlation value of the three.
 
@@ -105,6 +110,8 @@ chi_sq$observed
 chi_sq$expected
 ```
 
+As seen above, the p-value is far smaller than .05. Therefore, the relationship between majority race and nativity is significant. 
+
 ## Relationship #3, categorical variable (3 or more levels) + continuous variables
 
 ```{r}
@@ -130,9 +137,12 @@ differences <- TukeyHSD(anova)
 as_tibble(cbind(pair = row.names(differences$maj_race),
                 differences$maj_race))
 ```
+
+I can see that the summary from ANOVA test 1 shows me that there is not significant relationship between median age of the census tract and the majority race of the census tract. There is a significance to the relationships of both other tests, but I'm particularly interested in test 2, which shows the relationship between internet access and the majority race of each tract.
+
 ```{r}
 ggplot(MA_tracts, aes(x = maj_race, y = internet_acc)) +
-  geom_violin() +
+  geom_boxplot() +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) +
   scale_x_discrete(name = "Majority Race") +
@@ -142,6 +152,7 @@ ggplot(MA_tracts, aes(x = maj_race, y = internet_acc)) +
                                     prettyNum(seq(0, .5, by = .1),
                                               big.mark = ","))) 
 ```
+
 
 ## Relationship #4, binary variable and continuous variables
 
@@ -163,9 +174,19 @@ difference3 = t.test(internet_acc ~ large_foreign == "TRUE",
 difference3
 ```
 
+All three tests have a p-value less than .05, showing that the results of each are statistically significant. However, the statistical significance of all tests are somewhat weak.
+
+For test 1, which examines the relationship between nativity and median age, it shows that the median age of native-born residents is about 35 while the median age of foreign-born residents is 33.
+
+For test 2, which examines the relationship between nativity and the total population of each census tract, it shows that there are higher total populations for people born in foreign countries.
+
+For test 3, which examines the relationship between nativity and internet access, it shows that a larger percentage of people born in the US have internet than those born in another country. 
+
+I'm interested in plotting test 3:
+
 ```{r}
 ggplot(MA_tracts, aes(x = large_foreign, y = internet_acc)) +
-  geom_violin() +
+  geom_boxplot() +
   theme_bw() +
   scale_x_discrete(name = "Born in the US, yes or no",
                    labels = c("No", "Yes")) +
