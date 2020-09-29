@@ -1,0 +1,100 @@
+---
+title: "Assignment 4"
+author: "Adriana LH"
+date: "9/24/2020"
+output: 
+ html_document:
+    theme: cosmo
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    highlight: zenburn
+---
+
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+```
+
+## Loading the data
+
+As a refresher, I am studying tract-level data in Suffolk County, MA. 
+
+My categorical variables are:
+
+1. Majority race
+
+2. Nativity in each census tract, which I have defined as being "largely" foreign born or not (>25%). Note that I have NOT used majority (>50%) as very few tracts would have fulfilled that. 
+
+My continuous variables are:
+
+1. Percentage of tracts with internet access
+
+2. Median age of each census tract
+
+3. Total population of each census tract
+
+```{r}
+vars <- c(hispanic_latino = "B03002_012", 
+          white_alone = "B03002_003",
+          black_alone = "B03002_004",
+          asian_alone = "B03002_006",
+          total_pop = "B01003_001", 
+          internet_access = "B28002_001", 
+          med_age = "B01002_001",
+          foreign_born = "B05002_013")
+
+MA_tracts <- get_acs(geography = "tract",
+                     variables = vars,
+                     state = "MA",
+                     county = "Suffolk",
+                     output = "wide")
+
+MA_tracts <- MA_tracts %>%
+
+  mutate(pct_latino = hispanic_latinoE/total_popE,
+         pct_white = white_aloneE/total_popE,
+         pct_black = black_aloneE/total_popE,
+         pct_asian = asian_aloneE/total_popE,
+         large_foreign = foreign_bornE/total_popE >0.25) %>%
+  
+  mutate(maj_race = case_when(pct_latino > 0.5 ~ "latino",
+                              pct_white > 0.5 ~ "white",
+                              pct_black > 0.5 ~ "black",
+                              pct_asian > 0.5 ~ "asian",
+                              TRUE ~ "1no_majority")) %>%
+  
+  mutate(internet_acc = internet_accessE/total_popE) %>%
+  
+  select(large_foreign, internet_acc, med_ageE, maj_race, total_popE)
+```
+
+
+## Estimating a regression model 
+
+My dependent variable that I am interested in studying is internet access.
+
+My independent variables that I am studying are nativity (large_foreign), majority race, and median age. I am interested in seeing if any of these independent variables have any sort of influence on higher internet access percentage.
+
+Note that I am using the "no majority race" census tract variable as my standard. I noticed that the "no majority" was actually the majority racial group in my data set. I also felt that there was no good reason in this experiment to justify using majority white (or any other one race) as the standard. 
+
+```{r}
+model <- lm(internet_acc ~ large_foreign + maj_race + med_ageE, 
+            data = MA_tracts)
+
+summary(model)
+```
+
+## Interpreting my results
+
+The adjusted R-squared value is about 18%, meaning that the above variables can explain about 18% of the variation in internet access seen in Suffolk County census tracts. However, of the categories that I tested above only two of them are statistically significant: median age and majority white. 
+
+Median age: The regression model shows that as age increases, the percentage of internet access also increases as well (by about .003 percentage points). It is a very slight but still statistically significant relationship. This finding is in line with the correlation test I ran in assignment 3, which showed that there was a weak yet still statistically significant positive relationship between age and internet access.
+
+Majority White census tracts: This relationship is the strongest of the two statistically significant variables. Majority white census tracts are 0.07 percentage points more likely to have internet access than census tracts that have other racial majorities. 
+
+The other variables in this analysis are not statistically significant from the variable control (census tracts with no racial majority). 
+
+
+
