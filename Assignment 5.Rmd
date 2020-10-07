@@ -1,0 +1,153 @@
+---
+title: "Assignment 5"
+author: "Adriana LH"
+date: "10/6/2020"
+output:
+   html_document:
+    theme: cosmo
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    highlight: zenburn
+---
+
+```{r load libraries, include = FALSE}
+library(tidyverse)
+library(jtools)
+library(interactions)
+library(knitr)
+library(tidycensus)
+```
+
+## Loading my data 
+```{r}
+vars <- c(hispanic_latino = "B03002_012", 
+          white_alone = "B03002_003",
+          black_alone = "B03002_004",
+          asian_alone = "B03002_006",
+          total_pop = "B01003_001", 
+          internet_access = "B28002_001", 
+          med_age = "B01002_001",
+          foreign_born = "B05002_013")
+
+MA_tracts <- get_acs(geography = "tract",
+                     variables = vars,
+                     state = "MA",
+                     county = "Suffolk",
+                     output = "wide")
+
+MA_tracts <- MA_tracts %>%
+
+  mutate(pct_latino = hispanic_latinoE/total_popE,
+         pct_white = white_aloneE/total_popE,
+         pct_black = black_aloneE/total_popE,
+         pct_asian = asian_aloneE/total_popE,
+         large_foreign = foreign_bornE/total_popE >0.25) %>%
+  
+  mutate(maj_race = case_when(pct_latino > 0.5 ~ "latino",
+                              pct_white > 0.5 ~ "white",
+                              pct_black > 0.5 ~ "black",
+                              pct_asian > 0.5 ~ "asian",
+                              TRUE ~ "1no_majority")) %>%
+  
+  mutate(internet_acc = internet_accessE/total_popE) %>%
+  
+  select(large_foreign, internet_acc, med_ageE, maj_race, total_popE)
+```
+
+## Loading my model
+First I will load the regression model I used in Assignment 4, just for clarity and ease of referring back to. I've included all variables EXCEPT the total population of each tract in my model because I do not think that the total population of a census tract impacts a household's internet access.
+
+```{r}
+model1 <- lm(internet_acc ~ large_foreign + maj_race + med_ageE, 
+            data = MA_tracts)
+
+summary(model1)
+```
+
+
+## Second regression model with Log Transformation
+For my second regression model, I will try to log transform the median age value and see if that strengthens model fit.
+
+```{r}
+model2 <- lm(internet_acc ~ large_foreign + maj_race + log(med_ageE), 
+            data = MA_tracts)
+
+summary(model2)
+```
+
+It looks like the R-squared value of model 2 is about 2 percentage points higher than model 1, so it's slightly better!
+
+## Converting Age to a Categorical Variable
+
+I'm wondering if results become clearer if I parse out age values in terms of life-stages. 
+```{r}
+MA_tracts <- MA_tracts %>% 
+  mutate(age_range = case_when(med_ageE < 30 ~ "twenties",
+                              med_ageE < 40 ~ "thirties",
+                              med_ageE < 60 ~ "middle aged",
+                              med_ageE < 80 ~ "senior"))
+
+model3 <- lm(internet_acc ~ large_foreign + age_range + maj_race,
+data = MA_tracts) 
+
+summary(model3)
+```
+
+I see here that the multiple R-squared value improves, but the adjusted r-squared value actually decreases by a percent.
+
+## Visualizing model fit
+
+```{r}
+ModelFit <- tibble(model = c(1, 2, 3),
+                   R_square = c(summary(model1)$adj.r.squared,
+                                summary(model2)$adj.r.squared,
+                                summary(model3)$adj.r.squared))
+                        
+
+ggplot(ModelFit, aes(x = model, y = R_square)) +
+  geom_line() +
+  scale_x_continuous(name = "",
+                   breaks = breaks <- seq(1, 3, by = 1),
+                   labels = paste("Model", breaks)) +
+  scale_y_continuous(name = "Adjusted R-squared value") +
+  theme_bw()
+```
+
+Model 2 is the best fitting model for my data set. 
+
+## Organizing and visualizing my model results 
+```{r}
+coeff_names <- c("Median Age of Tract" = "med_ageE",
+                 "Median Age of Tract\n(log-transformed)" = "log(med_ageE)",
+            "Majority Race Asian\n(compared to no majority race)" = "maj_raceasian",
+            "Majority Race Black \n(compared to no majority race)" = "maj_raceblack",
+            "Majority Race Latino\n(compared to no majority race)" = "maj_racelatino",
+            "Majority Race White\n(compared to no majority race)" = "maj_racewhite",
+             "Nativity Within Census Tract" = "large_foreignTRUE")
+                 
+
+export_summs(model1, model2,
+             error_format = "(p = {p.value})",
+             error_pos = "same",
+             model.names = c("Initial Model", "Preferred Model"),
+             coefs = coeff_names)
+              
+```
+
+```{r}
+coeff_plot <- c("Median Age of Tract" = "med_ageE",
+                 "Median Age of Tract\n(log-transformed)" = "log(med_ageE)",
+            "Majority Race Asian\n(compared to no majority race)" = "maj_raceasian",
+            "Majority Race Black \n(compared to no majority race)" = "maj_raceblack",
+            "Majority Race Latino\n(compared to no majority race)" = "maj_racelatino",
+            "Majority Race White\n(compared to no majority race)" = "maj_racewhite",
+             "Nativity Within Census Tract" = "large_foreignTRUE")
+            
+            plot_coefs(model2, 
+           coefs = coeff_plot,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Internet Access")
+```
+
